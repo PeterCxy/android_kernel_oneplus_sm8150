@@ -417,8 +417,8 @@ struct usbpd {
 	bool			peer_usb_comm;
 	bool			peer_pr_swap;
 	bool			peer_dr_swap;
-	bool		oem_bypass;
-	bool		periph_direct;
+	bool		        periph_direct;
+
 
 	u32			sink_caps[7];
 	int			num_sink_caps;
@@ -1333,6 +1333,8 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 		power_supply_set_property(pd->usb_psy,
 				POWER_SUPPLY_PROP_TYPEC_SRC_RP, &val);
 
+		dual_role_instance_changed(pd->dual_role);
+
 		/* Set CC back to DRP toggle for the next disconnect */
 		val.intval = POWER_SUPPLY_TYPEC_PR_DUAL;
 		power_supply_set_property(pd->usb_psy,
@@ -1427,21 +1429,17 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 
 			usbpd_err(&pd->dev, "Invalid request: %08x\n", pd->rdo);
 
-			if (pd->oem_bypass) {
-				usbpd_info(&pd->dev, "oem bypass invalid request!\n");
-			} else {
-				if (pd->in_explicit_contract)
-					usbpd_set_state(pd, PE_SRC_READY);
-				else
-					/*
-					 * bypass PE_SRC_Capability_Response and
-					 * PE_SRC_Wait_New_Capabilities in this
-					 * implementation for simplicity.
-					 */
-					usbpd_set_state(pd,
-						PE_SRC_SEND_CAPABILITIES);
-				break;
-			}
+			if (pd->in_explicit_contract)
+				usbpd_set_state(pd, PE_SRC_READY);
+			else
+				/*
+				 * bypass PE_SRC_Capability_Response and
+				 * PE_SRC_Wait_New_Capabilities in this
+				 * implementation for simplicity.
+				 */
+					usbpd_set_state(pd,PE_SRC_SEND_CAPABILITIES);
+
+			break;
 		}
 
 		/* PE_SRC_TRANSITION_SUPPLY pseudo-state */
@@ -1565,6 +1563,8 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 	case PE_SNK_STARTUP:
 		if (pd->current_dr == DR_NONE || pd->current_dr == DR_UFP) {
 			pd->current_dr = DR_UFP;
+
+			dual_role_instance_changed(pd->dual_role);
 			ret = power_supply_get_property(pd->usb_psy,
 					POWER_SUPPLY_PROP_REAL_TYPE, &val);
 			if (!ret) {
@@ -2614,6 +2614,7 @@ static void usbpd_sm(struct work_struct *w)
 				ARRAY_SIZE(default_src_caps), SOP_MSG);
 		if (ret) {
 			pd->caps_count++;
+
 			if (pd->caps_count >= PD_CAPS_COUNT) {
 				usbpd_dbg(&pd->dev, "Src CapsCounter exceeded, disabling PD\n");
 				usbpd_set_state(pd, PE_SRC_DISABLED);
@@ -4564,7 +4565,6 @@ struct usbpd *usbpd_create(struct device *parent)
 		pd->dual_role->drv_data = pd;
 	}
 
-	pd->oem_bypass = true;
 	pd->periph_direct = false;
 	pd->current_pr = PR_NONE;
 	pd->current_dr = DR_NONE;
