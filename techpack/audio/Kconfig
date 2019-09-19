@@ -150,3 +150,5 @@ config WCD_DSP_GLINK
 	tristate "WCD_DSP_GLINK"
 config WSA_MACRO
 	tristate "WSA_MACRO"
+config VOICE_MHI
+	tristate "VOICE_MHI"
